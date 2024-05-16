@@ -13,7 +13,7 @@ on:
 # Define jobs to be run in the workflow
 jobs:
   cd-lint-job:
-    name: Linting  # Name of the linting job
+    name: 'Check Lint job'  # Linting job to check code quality
     runs-on: ubuntu-latest  # Specifies the runner environment
 
     steps:
@@ -25,26 +25,29 @@ jobs:
         with:
           node-version: 14
 
-      - name: Restore dependencies  # Step to restore npm dependencies from cache
-        id: cache
+      - name: Restore cache  # Step to restore npm cache
         uses: actions/cache@v3
         with:
           path: ~/.npm
-          key: deps-node-modules-${{ hashFiles('**/package-lock.json') }}
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
 
       - name: Install dependencies  # Step to install npm dependencies
-        run: cd ./starter/frontend && npm install
+        run: |
+          cd ./starter/frontend
+          npm install
 
-      - name: Install Prettier  # Step to install Prettier for code formatting
+      - name: Install prettier  # Step to install Prettier for code formatting
         run: |
           cd ./starter/frontend 
           npm install prettier@2.8.8 --save-dev
 
       - name: Run lint check  # Step to run lint checks using npm
-        run: cd ./starter/frontend && npm run lint
+        run: |
+          cd ./starter/frontend
+          npm run lint
 
   cd-test-job:
-    name: Testing job  # Name of the testing job
+    name: 'Test Job'  # Testing job to run tests
     runs-on: ubuntu-latest  # Specifies the runner environment
     needs: cd-lint-job  # Run tests only if linting job passes
 
@@ -57,40 +60,43 @@ jobs:
         with:
           node-version: 14
 
-      - name: Restore dependencies  # Step to restore npm dependencies from cache
-        id: cache
+      - name: Restore cache  # Step to restore npm cache
         uses: actions/cache@v3
         with:
           path: ~/.npm
-          key: deps-node-modules-${{ hashFiles('**/package-lock.json') }}
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
 
       - name: Install dependencies  # Step to install npm dependencies
-        run: cd ./starter/frontend && npm install
+        run: |
+          cd ./starter/frontend
+          npm install
 
-      - name: Install Prettier  # Step to install Prettier for code formatting
+      - name: Install prettier  # Step to install Prettier for code formatting
         run: |
           cd ./starter/frontend 
           npm install prettier@2.8.8 --save-dev
 
-      - name: Run test  # Step to run tests using npm
-        run: cd ./starter/frontend && npm run test
+      - name: Run tests  # Step to run tests using npm
+        run: |
+          cd ./starter/frontend
+          npm run test
 
   build:
-    needs: [cd-lint-job, cd-test-job]  # Specifies dependencies on cd-lint-job and cd-test-job
+    needs: [cd-lint-job, cd-test-job]  # Specifies dependencies on lint-job and test-job
     runs-on: ubuntu-latest  # Specifies the runner environment
 
     steps:
       - name: Checkout code  # Step to check out the code from the repository
         uses: actions/checkout@v3
-        
-      - name: Configure AWS Credentials  # Step to configure AWS credentials for ECR and EKS
+
+      - name: Configure AWS Credentials  # Step to configure AWS credentials for ECR
         uses: aws-actions/configure-aws-credentials@v1
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
 
-      - name: ECR Login  # Step to log in to Amazon ECR
+      - name: ECR Login  # Step to login to Amazon ECR
         uses: aws-actions/amazon-ecr-login@v1
         with:
           registry: 155614359981.dkr.ecr.us-east-1.amazonaws.com
@@ -98,22 +104,22 @@ jobs:
       - name: Build Docker image  # Step to build the Docker image
         run: |
           cd ./starter/frontend
-          docker build -t frontend:${{ github.sha }} --build-arg REACT_APP_MOVIE_API_URL=${{ vars.REACT_APP_MOVIE_API_URL }} .
+          docker build -t frontend:${GITHUB_SHA::7} --build-arg REACT_APP_MOVIE_API_URL=${{ vars.REACT_APP_MOVIE_API_URL }} .
       
       - name: Tag Docker Image  # Step to tag the Docker image
         run: |
-          docker tag frontend:${{ github.sha }} 155614359981.dkr.ecr.us-east-1.amazonaws.com/frontend:${{ github.sha }}
+          docker tag frontend:${GITHUB_SHA::7} 155614359981.dkr.ecr.us-east-1.amazonaws.com/frontend:${GITHUB_SHA::7}
 
-      - name: Push Docker image to ECR  # Step to push the Docker image to Amazon ECR
+      - name: Push Docker image to ECR  # Step to push the Docker image to ECR
         run: |
-          docker push 155614359981.dkr.ecr.us-east-1.amazonaws.com/frontend:${{ github.sha }}
+          docker push 155614359981.dkr.ecr.us-east-1.amazonaws.com/frontend:${GITHUB_SHA::7}
       
-      - name: Kubeconfig Auth  # Step to update kubeconfig for EKS
+      - name: Kubeconfig Auth  # Step to authenticate with Kubernetes cluster
         run: |
           aws eks update-kubeconfig --name cluster --region us-east-1
-      
-      - name: Deploy to Kubernetes  # Step to deploy the application to Kubernetes
+
+      - name: Deploy to Kubernetes  # Step to deploy Docker image to Kubernetes
         run: |
           cd ./starter/frontend/k8s
-          kustomize edit set image frontend=155614359981.dkr.ecr.us-east-1.amazonaws.com/frontend:${{ github.sha }}
+          kustomize edit set image frontend=155614359981.dkr.ecr.us-east-1.amazonaws.com/frontend:${GITHUB_SHA::7}
           kustomize build | kubectl apply -f -
