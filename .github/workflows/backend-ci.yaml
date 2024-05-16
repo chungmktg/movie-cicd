@@ -1,0 +1,86 @@
+# Name of the GitHub Actions workflow
+name: 'Backend CI process'
+
+# Define events that trigger the workflow
+on:
+  workflow_dispatch:  # Allows manual triggering of the workflow
+
+  pull_request:  # Triggers the workflow on pull requests to the main branch
+    branches:
+      - main
+
+# Define jobs to be run in the workflow
+jobs:
+  ci-lint-job:
+    name: 'Code Linting'  
+    runs-on: ubuntu-latest  # Specifies the runner environment
+
+    steps:
+      - name: checkout source code  # Step to check out the code from the repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python  # Step to set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.11'
+
+      - name: Restore cache  # Step to restore npm cache
+        uses: actions/cache@v2
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          
+      - name: Install dependencies  # Step to install Python dependencies
+        run: |
+          cd ./starter/backend
+          python -m pip install --upgrade pip
+          pip install pipenv
+          pipenv install --dev
+
+      - name: Run lint check source  # Step to run lint check using pipenv
+        run: cd ./starter/backend && pipenv run lint
+
+  ci-test-job:
+    name: 'Test Runner Job' 
+    runs-on: ubuntu-latest  # Specifies the runner environment
+
+    steps:
+      - name: checkout code  # Step to check out the code from the repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python  # Step to set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.11'
+
+      - name: Restore cache  # Step to restore npm cache
+        uses: actions/cache@v2
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          
+      - name: Install dependencies  # Step to install Python dependencies
+        run: |
+          cd ./starter/backend
+          python -m pip install --upgrade pip
+          pip install pipenv
+          pipenv install pytest --dev
+          pipenv install --dev
+
+      - name: Run tests  # Step to run tests using pipenv
+        run: |
+          cd ./starter/backend 
+          pipenv run test
+
+  build:
+    needs: [ci-lint-job, ci-test-job]  # Specifies dependencies on ci-lint-job and ci-test-job
+    runs-on: ubuntu-latest  # Specifies the runner environment
+
+    steps:
+      - name: checkout code  # Step to check out the code from the repository
+        uses: actions/checkout@v3
+
+      - name: Build Docker Image  # Step to build the Docker image
+        run: |
+          cd ./starter/backend
+          docker build -t backend .

@@ -1,0 +1,105 @@
+# Name of the GitHub Actions workflow
+name: 'Frontend CI'
+
+# Define events that trigger the workflow
+on:
+  workflow_dispatch:  # Allows manual triggering of the workflow
+
+  pull_request:  # Triggers the workflow on pull requests to the main branch
+    branches:
+      - main
+
+# Define jobs to be run in the workflow
+jobs:
+  ci-lint-job:
+    name: Linting  # Name of the linting job
+    runs-on: ubuntu-latest  # Specifies the runner environment
+
+    steps:
+      - name: checkout code  # Step to check out the code from the repository
+        uses: actions/checkout@v3
+
+      - name: Setup nodejs  # Step to set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 14
+
+      - name: Cache dependencies  # Step to cache npm dependencies
+        id: cache
+        uses: actions/cache@v3
+        with:
+          path: ~/.npm
+          key: deps-node-modules-${{ hashFiles('**/package-lock.json') }}
+
+      - name: Install dependencies  # Step to install npm dependencies
+        run: cd ./starter/frontend && npm install
+
+      - name: Install prettier  # Step to install Prettier for code formatting
+        run: |
+          cd ./starter/frontend 
+          npm install prettier@2.8.8 --save-dev
+
+      - name: Run lint check  # Step to run lint checks using npm
+        run: cd ./starter/frontend && npm run lint
+
+  ci-test-job:
+    name: Testing job  # Name of the testing job
+    runs-on: ubuntu-latest  # Specifies the runner environment
+
+    steps:
+      - name: checkout code  # Step to check out the code from the repository
+        uses: actions/checkout@v3
+
+      - name: Setup nodejs  # Step to set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 14
+
+      - name: Cache dependencies  # Step to cache npm dependencies
+        id: cache
+        uses: actions/cache@v3
+        with:
+          path: ~/.npm
+          key: deps-node-modules-${{ hashFiles('**/package-lock.json') }}
+
+      - name: Install dependencies  # Step to install npm dependencies
+        run: cd ./starter/frontend && npm install
+
+      - name: Run test  # Step to run tests using npm
+        run: cd ./starter/frontend && npm run test
+
+  build:
+    needs: [ci-lint-job, ci-test-job]  # Specifies dependencies on ci-lint-job and ci-test-job
+    runs-on: ubuntu-latest  # Specifies the runner environment
+
+    steps:
+      - name: checkout code  # Step to check out the code from the repository
+        uses: actions/checkout@v3
+
+      - name: Setup nodejs  # Step to set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 14
+      
+      - name: Cache dependencies  # Step to cache npm dependencies
+        id: cache
+        uses: actions/cache@v3
+        with:
+          path: ~/.npm
+          key: deps-node-modules-${{ hashFiles('**/package-lock.json') }}
+
+      - name: Install prettier  # Step to install Prettier for code formatting
+        run: |
+          cd ./starter/frontend 
+          npm install prettier@2.8.8 --save-dev
+
+      - name: Install dependencies  # Step to install npm dependencies
+        run: cd ./starter/frontend && npm install
+
+      - name: Run test  # Step to run tests using npm
+        run: cd ./starter/frontend && npm run test
+      
+      - name: Build Docker Image  # Step to build the Docker image
+        run: |
+          cd ./starter/frontend
+          docker build -t frontend .
