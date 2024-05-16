@@ -1,5 +1,5 @@
 # Name of the GitHub Actions workflow
-name: 'Backend CI process'
+name: 'Backend CI'
 
 # Define events that trigger the workflow
 on:
